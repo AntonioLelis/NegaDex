@@ -1,31 +1,32 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { 
   StyleSheet, Text, View, TouchableOpacity, Modal, TextInput, 
-  FlatList, SafeAreaView, StatusBar 
+  FlatList, SafeAreaView, StatusBar, Animated, Alert, Dimensions, ScrollView
 } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { NavigationContainer, useFocusEffect } from '@react-navigation/native';
+import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
+import { BarChart } from 'react-native-chart-kit';
 
 // --- TIPAGEM ---
-type NoEvent = {
-  id: string;
-  timestamp: string;
-  reason: string;
-};
-
+type NoEvent = { id: string; timestamp: string; reason: string; };
 const STORAGE_KEY = '@negadex_events';
+const screenWidth = Dimensions.get('window').width;
 
-// --- TELA 1: O BOTÃO VERMELHO (Registro) ---
+// --- TELA 1: O BOTÃO VERMELHO ---
 function HomeScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [reason, setReason] = useState('');
   const [history, setHistory] = useState<NoEvent[]>([]);
   const [recentReasons, setRecentReasons] = useState<string[]>([]);
+  const [streak, setStreak] = useState(0);
+  
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useFocusEffect(
+    useCallback(() => { loadData(); }, [])
+  );
 
   const loadData = async () => {
     try {
@@ -33,12 +34,39 @@ function HomeScreen() {
       if (data) {
         const parsed: NoEvent[] = JSON.parse(data);
         setHistory(parsed);
-        const uniqueReasons = Array.from(new Set(parsed.map(item => item.reason)));
-        setRecentReasons(uniqueReasons);
+        setRecentReasons(Array.from(new Set(parsed.map(item => item.reason))));
+        calculateStreak(parsed);
       }
-    } catch (e) {
-      console.error('Erro ao carregar dados', e);
+    } catch (e) { console.error(e); }
+  };
+
+  const calculateStreak = (data: NoEvent[]) => {
+    if (data.length === 0) { setStreak(0); return; }
+    let currentStreak = 1;
+    const uniqueDates = Array.from(new Set(data.map(d => new Date(d.timestamp).toLocaleDateString('pt-BR'))));
+    const todayDate = new Date().toLocaleDateString('pt-BR');
+    const yesterdayDate = new Date(Date.now() - 86400000).toLocaleDateString('pt-BR');
+    
+    if (uniqueDates[0] !== todayDate && uniqueDates[0] !== yesterdayDate) {
+      setStreak(0); return;
     }
+
+    for (let i = 0; i < uniqueDates.length - 1; i++) {
+      const d1 = new Date(uniqueDates[i].split('/').reverse().join('-'));
+      const d2 = new Date(uniqueDates[i+1].split('/').reverse().join('-'));
+      const diffDays = Math.ceil(Math.abs(d1.getTime() - d2.getTime()) / (1000 * 60 * 60 * 24)); 
+      
+      if (diffDays === 1) currentStreak++;
+      else break;
+    }
+    setStreak(currentStreak);
+  };
+
+  const handlePressButton = () => {
+    Animated.sequence([
+      Animated.timing(scaleAnim, { toValue: 0.9, duration: 100, useNativeDriver: true }),
+      Animated.spring(scaleAnim, { toValue: 1, friction: 3, tension: 40, useNativeDriver: true })
+    ]).start(() => setModalVisible(true));
   };
 
   const handleRegisterNo = async (selectedReason: string) => {
@@ -47,240 +75,323 @@ function HomeScreen() {
       timestamp: new Date().toISOString(),
       reason: selectedReason.trim() || 'Sem motivo aparente',
     };
-
     const updatedHistory = [newEvent, ...history];
-    setHistory(updatedHistory);
-    setReason('');
-    setModalVisible(false);
-
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedHistory));
+      setReason('');
+      setModalVisible(false);
       loadData();
-    } catch (e) {
-      console.error('Erro ao salvar', e);
-    }
+    } catch (e) { console.error(e); }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>NegaDex</Text>
-      <Text style={styles.subtitle}>Registre a rejeição.</Text>
-
-      <View style={styles.centerContent}>
-        <TouchableOpacity 
-          style={styles.redButton} 
-          activeOpacity={0.7}
-          onPress={() => setModalVisible(true)}
-        >
-          <Text style={styles.redButtonText}>TOMEI UM NÃO</Text>
-        </TouchableOpacity>
+    <View style={styles.container}>
+      
+      {/* HEADER DA TELA PRINCIPAL (Ofensiva + Total) */}
+      <View style={styles.homeHeader}>
+        {streak > 0 ? (
+          <View style={styles.streakBadge}>
+            <Text style={styles.streakText}>🔥 Ofensiva: {streak} {streak === 1 ? 'dia' : 'dias'}</Text>
+          </View>
+        ) : (
+          <Text style={styles.subtitle}>Registre a rejeição.</Text>
+        )}
+        
+        <Text style={styles.totalNaoText}>
+          Total Acumulado: <Text style={{color: '#FF3B30', fontWeight: '900'}}>{history.length}</Text>
+        </Text>
       </View>
 
-      {/* MODAL DE MOTIVOS */}
+      <View style={styles.centerContent}>
+        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+          <TouchableOpacity style={styles.redButton} activeOpacity={1} onPress={handlePressButton}>
+            <Text style={styles.redButtonText}>TOMEI NÃO</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+
       <Modal visible={modalVisible} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Qual foi o motivo?</Text>
-            
-            <TextInput
-              style={styles.input}
-              placeholder="Digite um novo motivo..."
-              value={reason}
-              onChangeText={setReason}
-            />
-            
+            <TextInput style={styles.input} placeholder="Digite um novo motivo..." value={reason} onChangeText={setReason} />
             <TouchableOpacity style={styles.saveButton} onPress={() => handleRegisterNo(reason)}>
               <Text style={styles.saveButtonText}>Salvar Novo Motivo</Text>
             </TouchableOpacity>
-
             <Text style={styles.orText}>Ou escolha um anterior:</Text>
-            
             <FlatList
-              data={recentReasons}
-              keyExtractor={(item) => item}
+              data={recentReasons} keyExtractor={(item) => item}
               renderItem={({ item }) => (
-                <TouchableOpacity 
-                  style={styles.reasonBadge}
-                  onPress={() => handleRegisterNo(item)}
-                >
+                <TouchableOpacity style={styles.reasonBadge} onPress={() => handleRegisterNo(item)}>
                   <Text style={styles.reasonBadgeText}>{item}</Text>
                 </TouchableOpacity>
               )}
               style={styles.list}
             />
-
             <TouchableOpacity style={styles.cancelButton} onPress={() => setModalVisible(false)}>
               <Text style={styles.cancelButtonText}>Cancelar (Foi alarme falso)</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
-// --- TELA 2: HISTÓRICO COMPLETO ---
+// --- TELA 2: HISTÓRICO COM EXCLUSÃO ---
 function HistoryScreen() {
   const [history, setHistory] = useState<NoEvent[]>([]);
 
-  useEffect(() => {
-    loadHistory();
-  }, []);
+  useFocusEffect(
+    useCallback(() => { loadHistory(); }, [])
+  );
 
   const loadHistory = async () => {
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEY);
-      if (data) {
-        setHistory(JSON.parse(data));
-      }
-    } catch (e) {
-      console.error(e);
-    }
+      if (data) setHistory(JSON.parse(data));
+    } catch (e) { console.error(e); }
   };
 
-  const formatDate = (isoString: string) => {
-    const date = new Date(isoString);
-    return date.toLocaleDateString('pt-BR', {
-      day: '2-digit', month: '2-digit', year: '2-digit',
-      hour: '2-digit', minute: '2-digit'
-    }).replace(',', ' às');
+  const deleteRecord = (id: string) => {
+    Alert.alert(
+      "Excluir Registro",
+      "Tem certeza que deseja apagar esse 'Não'?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        { 
+          text: "Apagar", 
+          style: "destructive",
+          onPress: async () => {
+            const newHistory = history.filter(item => item.id !== id);
+            await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newHistory));
+            setHistory(newHistory);
+          }
+        }
+      ]
+    );
+  };
+
+  const formatDate = (iso: string) => {
+    return new Date(iso).toLocaleDateString('pt-BR', {
+      day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit'
+    }).replace(',', ' às ');
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Linha do Tempo</Text>
-      
-      <TouchableOpacity style={styles.reloadButton} onPress={loadHistory}>
-        <Text style={styles.reloadText}>Atualizar Histórico</Text>
-      </TouchableOpacity>
-
+    <View style={styles.container}>
       <FlatList
         data={history}
         keyExtractor={(item) => item.id}
+        contentContainerStyle={{ paddingBottom: 20, paddingTop: 20 }}
         renderItem={({ item }) => (
           <View style={styles.historyCard}>
-            <Text style={styles.historyDate}>{formatDate(item.timestamp)}</Text>
-            <Text style={styles.historyReason}>Motivo: {item.reason}</Text>
+            <View style={{flex: 1}}>
+              <Text style={styles.historyDate}>{formatDate(item.timestamp)}</Text>
+              <Text style={styles.historyReason}>{item.reason}</Text>
+            </View>
+            <TouchableOpacity onPress={() => deleteRecord(item.id)} style={styles.deleteBtn}>
+              <Ionicons name="trash-outline" size={24} color="#FF3B30" />
+            </TouchableOpacity>
           </View>
         )}
-        contentContainerStyle={{ paddingBottom: 20 }}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
-// --- TELA 3: DASHBOARD/RELATÓRIOS ---
+// --- TELA 3: DASHBOARD BI (HISTOGRAMA + PARETO) ---
 function DashboardScreen() {
-  const [stats, setStats] = useState<{reason: string; count: number}[]>([]);
-  const [total, setTotal] = useState(0);
+  const [history, setHistory] = useState<NoEvent[]>([]);
+  const [timeView, setTimeView] = useState<'month' | 'year'>('month');
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  
+  const [histogramData, setHistogramData] = useState<{labels: string[], datasets: [{data: number[]}]}>({labels: [], datasets: [{data: [0]}]});
+  const [paretoStats, setParetoStats] = useState<{labels: string[], datasets: [{data: number[]}]}>({labels: [], datasets: [{data: [0]}]});
 
-  useEffect(() => {
-    loadStats();
-  }, []);
+  useFocusEffect(
+    useCallback(() => { loadStats(); }, [])
+  );
 
   const loadStats = async () => {
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEY);
       if (data) {
         const parsed: NoEvent[] = JSON.parse(data);
-        setTotal(parsed.length);
-
-        const counts = parsed.reduce((acc, curr) => {
-          acc[curr.reason] = (acc[curr.reason] || 0) + 1;
-          return acc;
-        }, {} as Record<string, number>);
-
-        const formattedStats = Object.keys(counts).map(key => ({
-          reason: key,
-          count: counts[key]
-        })).sort((a, b) => b.count - a.count);
-
-        setStats(formattedStats);
+        setHistory(parsed);
       }
-    } catch (e) {
-      console.error(e);
+    } catch (e) { console.error(e); }
+  };
+
+  useEffect(() => {
+    if (history.length > 0) {
+      updateCharts(history, timeView, selectedYear);
     }
+  }, [history, timeView, selectedYear]);
+
+  const updateCharts = (data: NoEvent[], view: 'month' | 'year', year: number) => {
+    // 1. Processamento do Histograma (Temporal)
+    if (view === 'month') {
+      const monthCounts = new Array(12).fill(0);
+      data.forEach(event => {
+        const d = new Date(event.timestamp);
+        if (d.getFullYear() === year) monthCounts[d.getMonth()]++;
+      });
+      setHistogramData({
+        labels: ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'],
+        datasets: [{ data: monthCounts.every(v => v === 0) ? [0] : monthCounts }]
+      });
+    } else {
+      const yearCounts: Record<string, number> = {};
+      data.forEach(event => {
+        const y = new Date(event.timestamp).getFullYear().toString();
+        yearCounts[y] = (yearCounts[y] || 0) + 1;
+      });
+      const years = Object.keys(yearCounts).sort();
+      setHistogramData({
+        labels: years.length > 0 ? years : [new Date().getFullYear().toString()],
+        datasets: [{ data: years.length > 0 ? years.map(y => yearCounts[y]) : [0] }]
+      });
+    }
+
+    // 2. Processamento do Pareto (Motivos)
+    const counts = data.reduce((acc, curr) => {
+      acc[curr.reason] = (acc[curr.reason] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const sortedEntries = Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+
+    setParetoStats({
+      labels: sortedEntries.length > 0 ? sortedEntries.map(e => e[0].length > 8 ? e[0].substring(0, 8) + '..' : e[0]) : ['N/A'],
+      datasets: [{ data: sortedEntries.length > 0 ? sortedEntries.map(e => e[1]) : [0] }]
+    });
+  };
+
+  const chartConfig = {
+    backgroundColor: '#FFF', backgroundGradientFrom: '#FFF', backgroundGradientTo: '#FFF',
+    fillShadowGradient: '#FF3B30', fillShadowGradientOpacity: 1, decimalPlaces: 0,
+    color: (opacity = 1) => `rgba(255, 59, 48, ${opacity})`,
+    labelColor: (opacity = 1) => `rgba(28, 28, 30, ${opacity})`,
+    barPercentage: 0.6,
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Relatório de Danos</Text>
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
       
-      <View style={styles.scoreCard}>
-        <Text style={styles.scoreTitle}>Total de Nãos</Text>
-        <Text style={styles.scoreNumber}>{total}</Text>
-      </View>
+      {/* Controles do Histograma */}
+      <View style={styles.controlRow}>
+        <View style={styles.toggleGroup}>
+          <TouchableOpacity 
+            style={[styles.toggleBtn, timeView === 'month' && styles.toggleActive]} 
+            onPress={() => setTimeView('month')}
+          >
+            <Text style={[styles.toggleText, timeView === 'month' && styles.toggleTextActive]}>Meses</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.toggleBtn, timeView === 'year' && styles.toggleActive]} 
+            onPress={() => setTimeView('year')}
+          >
+            <Text style={[styles.toggleText, timeView === 'year' && styles.toggleTextActive]}>Anos</Text>
+          </TouchableOpacity>
+        </View>
 
-      <TouchableOpacity style={styles.reloadButton} onPress={loadStats}>
-        <Text style={styles.reloadText}>Atualizar Dados</Text>
-      </TouchableOpacity>
-
-      <FlatList
-        data={stats}
-        keyExtractor={(item) => item.reason}
-        renderItem={({ item }) => (
-          <View style={styles.statRow}>
-            <Text style={styles.statReason}>{item.reason}</Text>
-            <View style={styles.statBadge}>
-              <Text style={styles.statBadgeText}>{item.count}x</Text>
-            </View>
+        {timeView === 'month' && (
+          <View style={styles.yearSelector}>
+            <TouchableOpacity onPress={() => setSelectedYear(y => y - 1)}>
+              <Ionicons name="chevron-back" size={24} color="#007AFF" />
+            </TouchableOpacity>
+            <Text style={styles.selectedYearText}>{selectedYear}</Text>
+            <TouchableOpacity onPress={() => setSelectedYear(y => y + 1)}>
+              <Ionicons name="chevron-forward" size={24} color="#007AFF" />
+            </TouchableOpacity>
           </View>
         )}
-      />
+      </View>
+
+      {/* Gráfico Histograma */}
+      <View style={styles.chartContainer}>
+        <Text style={styles.chartTitle}>Frequência no Tempo</Text>
+        <BarChart
+          data={histogramData} 
+          width={screenWidth - 60} 
+          height={220}
+          yAxisLabel="" yAxisSuffix="" fromZero={true}
+          chartConfig={chartConfig} 
+          style={{ paddingRight: 30, borderRadius: 16, marginTop: 10 }}
+          showValuesOnTopOfBars={true}
+        />
+      </View>
+
+      {/* Gráfico de Pareto */}
+      <View style={[styles.chartContainer, { marginTop: 24 }]}>
+        <Text style={styles.chartTitle}>Top 5 Motivos (Pareto)</Text>
+        <BarChart
+          data={paretoStats} 
+          width={screenWidth - 60} 
+          height={240}
+          yAxisLabel="" yAxisSuffix="" fromZero={true}
+          chartConfig={chartConfig} 
+          style={{ paddingRight: 30, borderRadius: 16, marginTop: 10 }}
+          showValuesOnTopOfBars={true}
+        />
+      </View>
+
+    </ScrollView>
+  );
+}
+
+// --- NAVEGAÇÃO SUPERIOR ---
+const Tab = createMaterialTopTabNavigator();
+
+export default function App() {
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#FFF' }}>
+      <StatusBar barStyle="dark-content" />
+      
+      {/* Header do App */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>NegaDex</Text>
+      </View>
+
+      <NavigationContainer>
+        <Tab.Navigator 
+          screenOptions={{ 
+            tabBarActiveTintColor: '#FF3B30',
+            tabBarInactiveTintColor: '#8E8E93',
+            tabBarIndicatorStyle: { backgroundColor: '#FF3B30', height: 3 },
+            tabBarLabelStyle: { fontSize: 13, fontWeight: 'bold' },
+            tabBarStyle: { backgroundColor: '#FFF', elevation: 0, shadowOpacity: 0 },
+          }}
+        >
+          <Tab.Screen name="Registro" component={HomeScreen} />
+          <Tab.Screen name="Histórico" component={HistoryScreen} />
+          <Tab.Screen name="Analytics" component={DashboardScreen} />
+        </Tab.Navigator>
+      </NavigationContainer>
     </SafeAreaView>
   );
 }
 
-// --- NAVEGAÇÃO PRINCIPAL ---
-const Tab = createBottomTabNavigator();
-
-export default function App() {
-  return (
-    <NavigationContainer>
-      <StatusBar barStyle="dark-content" />
-      <Tab.Navigator screenOptions={{ 
-        headerShown: false,
-        tabBarActiveTintColor: '#FF3B30',
-        tabBarLabelStyle: { fontSize: 14, fontWeight: 'bold' }
-      }}>
-        <Tab.Screen 
-          name="Registro" 
-          component={HomeScreen} 
-          options={{ tabBarIcon: () => <Text>🔴</Text> }}
-        />
-        <Tab.Screen 
-          name="Histórico" 
-          component={HistoryScreen} 
-          options={{ tabBarIcon: () => <Text>📜</Text> }}
-        />
-        <Tab.Screen 
-          name="Dashboard" 
-          component={DashboardScreen} 
-          options={{ tabBarIcon: () => <Text>📊</Text> }}
-        />
-      </Tab.Navigator>
-    </NavigationContainer>
-  );
-}
-
-// --- ESTILOS COMPILAÇÕES ---
+// --- ESTILOS ---
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F2F2F7', padding: 20 },
-  title: { fontSize: 32, fontWeight: 'bold', color: '#1C1C1E', marginTop: 40, textAlign: 'center' },
-  subtitle: { fontSize: 16, color: '#8E8E93', textAlign: 'center', marginBottom: 20 },
+  header: { paddingVertical: 15, alignItems: 'center', backgroundColor: '#FFF' },
+  headerTitle: { fontSize: 28, fontWeight: '900', color: '#1C1C1E' },
+  subtitle: { fontSize: 16, color: '#8E8E93', textAlign: 'center', marginTop: 10, marginBottom: 20 },
   centerContent: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   
-  // Botão Vermelho
-  redButton: {
-    backgroundColor: '#FF3B30', width: 250, height: 250, borderRadius: 125,
-    justifyContent: 'center', alignItems: 'center',
-    shadowColor: '#FF3B30', shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5, shadowRadius: 15, elevation: 10,
-    borderWidth: 8, borderColor: '#FF8A84',
-  },
-  redButtonText: { color: '#FFF', fontSize: 24, fontWeight: '900', letterSpacing: 2 },
+  homeHeader: { alignItems: 'center', marginBottom: 20 },
+  totalNaoText: { fontSize: 18, fontWeight: 'bold', color: '#1C1C1E', marginTop: 8 },
+
+  streakBadge: { backgroundColor: '#FF9500', alignSelf: 'center', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, marginTop: 16, marginBottom: 8 },
+  streakText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
+
+  redButton: { backgroundColor: '#FF3B30', width: 250, height: 250, borderRadius: 125, justifyContent: 'center', alignItems: 'center', shadowColor: '#FF3B30', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.5, shadowRadius: 15, elevation: 10, borderWidth: 8, borderColor: '#FF8A84' },
+  redButtonText: { color: '#FFF', fontSize: 26, fontWeight: '900', letterSpacing: 2 },
   
-  // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: '#FFF', padding: 24, borderTopLeftRadius: 20, borderTopRightRadius: 20, minHeight: '50%' },
   modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 16 },
@@ -294,23 +405,21 @@ const styles = StyleSheet.create({
   cancelButton: { marginTop: 16, padding: 16, alignItems: 'center' },
   cancelButtonText: { color: '#FF3B30', fontSize: 16, fontWeight: 'bold' },
   
-  // Cards de Histórico
-  historyCard: { 
-    backgroundColor: '#FFF', padding: 16, borderRadius: 12, marginBottom: 12, 
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, 
-    shadowRadius: 4, elevation: 2, borderLeftWidth: 4, borderLeftColor: '#FF3B30' 
-  },
+  historyCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', padding: 16, borderRadius: 12, marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2, borderLeftWidth: 4, borderLeftColor: '#FF3B30' },
   historyDate: { fontSize: 12, color: '#8E8E93', fontWeight: 'bold', marginBottom: 4 },
   historyReason: { fontSize: 18, color: '#1C1C1E', fontWeight: '600' },
+  deleteBtn: { padding: 8 },
+
+  controlRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  toggleGroup: { flexDirection: 'row', backgroundColor: '#E5E5EA', borderRadius: 8, padding: 4 },
+  toggleBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 6 },
+  toggleActive: { backgroundColor: '#FFF', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 },
+  toggleText: { color: '#8E8E93', fontWeight: 'bold', fontSize: 14 },
+  toggleTextActive: { color: '#1C1C1E' },
   
-  // Dashboard & Reload
-  scoreCard: { backgroundColor: '#FFF', padding: 24, borderRadius: 16, alignItems: 'center', marginVertical: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3 },
-  scoreTitle: { fontSize: 18, color: '#8E8E93', fontWeight: 'bold' },
-  scoreNumber: { fontSize: 64, fontWeight: '900', color: '#FF3B30' },
-  reloadButton: { backgroundColor: '#E5E5EA', padding: 12, borderRadius: 8, alignItems: 'center', marginBottom: 16 },
-  reloadText: { color: '#007AFF', fontWeight: 'bold' },
-  statRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFF', padding: 16, borderRadius: 8, marginBottom: 8 },
-  statReason: { fontSize: 16, color: '#1C1C1E', flex: 1 },
-  statBadge: { backgroundColor: '#FF3B30', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
-  statBadgeText: { color: '#FFF', fontWeight: 'bold' },
+  yearSelector: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 },
+  selectedYearText: { fontSize: 16, fontWeight: 'bold', color: '#1C1C1E', marginHorizontal: 12 },
+
+  chartContainer: { backgroundColor: '#FFF', paddingVertical: 20, paddingHorizontal: 10, borderRadius: 16, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3 },
+  chartTitle: { fontSize: 18, fontWeight: 'bold', color: '#1C1C1E', marginBottom: 10 }
 });
