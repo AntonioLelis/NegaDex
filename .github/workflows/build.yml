@@ -13,7 +13,7 @@ jobs:
       - name: Configurar Node
         uses: actions/setup-node@v3
         with:
-          node-version: 18
+          node-version: 20.19.4
 
       - name: Configurar Java
         uses: actions/setup-java@v3
@@ -27,8 +27,8 @@ jobs:
       - name: Instalar dependências
         run: npm install
 
-      - name: Build Local no GitHub (Sem fila do Expo)
-        run: eas build -p android --profile preview --local
+      - name: Build no EAS (Nuvem)
+        run: eas build -p android --profile preview --non-interactive
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
