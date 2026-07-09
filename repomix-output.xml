@@ -1,0 +1,733 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+.claude/settings.json
+.github/workflows/build.yml
+.gitignore
+AGENTS.md
+app.json
+App.tsx
+assets/adaptive-icon.png
+assets/favicon.png
+assets/icon.png
+assets/splash-icon.png
+babel.config.js
+CLAUDE.md
+eas.json
+index.ts
+package.json
+tsconfig.json
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path=".claude/settings.json">
+{
+  "enabledPlugins": {
+    "expo@claude-plugins-official": true
+  }
+}
+</file>
+
+<file path=".gitignore">
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+# generated native folders
+/ios
+/android
+</file>
+
+<file path="AGENTS.md">
+# Expo HAS CHANGED
+
+Read the exact versioned docs at https://docs.expo.dev/versions/v54.0.0/ before writing any code.
+</file>
+
+<file path="babel.config.js">
+module.exports = function(api) {
+  api.cache(true);
+  return {
+    presets: ['babel-preset-expo'],
+    plugins: ['react-native-reanimated/plugin'],
+  };
+};
+</file>
+
+<file path="CLAUDE.md">
+@AGENTS.md
+</file>
+
+<file path="eas.json">
+{
+  "cli": {
+    "version": ">= 7.0.0"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "production": {}
+  },
+  "submit": {
+    "production": {}
+  }
+}
+</file>
+
+<file path="index.ts">
+import { registerRootComponent } from 'expo';
+
+import App from './App';
+
+// registerRootComponent calls AppRegistry.registerComponent('main', () => App);
+// It also ensures that whether you load the app in Expo Go or in a native build,
+// the environment is set up appropriately
+registerRootComponent(App);
+</file>
+
+<file path="tsconfig.json">
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true
+  }
+}
+</file>
+
+<file path="app.json">
+{
+  "expo": {
+    "name": "negadex",
+    "slug": "negadex",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "package": "com.antoniolelis.negadex"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "736105ca-9c52-4489-a286-fa398ee8500a"
+      }
+    },
+    "plugins": [
+      "expo-font"
+    ]
+  }
+}
+</file>
+
+<file path="App.tsx">
+import 'react-native-gesture-handler';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { 
+  StyleSheet, Text, View, TouchableOpacity, Modal, TextInput, 
+  FlatList, SafeAreaView, StatusBar, Animated, Alert, Dimensions, ScrollView
+} from 'react-native';
+import { NavigationContainer, useFocusEffect } from '@react-navigation/native';
+import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
+import { BarChart } from 'react-native-chart-kit';
+
+// --- TIPAGEM ---
+type NoEvent = { id: string; timestamp: string; reason: string; };
+const STORAGE_KEY = '@negadex_events';
+const screenWidth = Dimensions.get('window').width;
+
+// --- TELA 1: O BOTÃO VERMELHO ---
+function HomeScreen() {
+  const [modalVisible, setModalVisible] = useState(false);
+  const [reason, setReason] = useState('');
+  const [history, setHistory] = useState<NoEvent[]>([]);
+  const [recentReasons, setRecentReasons] = useState<string[]>([]);
+  const [streak, setStreak] = useState(0);
+  
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  useFocusEffect(
+    useCallback(() => { loadData(); }, [])
+  );
+
+  const loadData = async () => {
+    try {
+      const data = await AsyncStorage.getItem(STORAGE_KEY);
+      if (data) {
+        const parsed: NoEvent[] = JSON.parse(data);
+        setHistory(parsed);
+        setRecentReasons(Array.from(new Set(parsed.map(item => item.reason))));
+        calculateStreak(parsed);
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  const calculateStreak = (data: NoEvent[]) => {
+    if (data.length === 0) { setStreak(0); return; }
+    let currentStreak = 1;
+    const uniqueDates = Array.from(new Set(data.map(d => new Date(d.timestamp).toLocaleDateString('pt-BR'))));
+    const todayDate = new Date().toLocaleDateString('pt-BR');
+    const yesterdayDate = new Date(Date.now() - 86400000).toLocaleDateString('pt-BR');
+    
+    if (uniqueDates[0] !== todayDate && uniqueDates[0] !== yesterdayDate) {
+      setStreak(0); return;
+    }
+
+    for (let i = 0; i < uniqueDates.length - 1; i++) {
+      const d1 = new Date(uniqueDates[i].split('/').reverse().join('-'));
+      const d2 = new Date(uniqueDates[i+1].split('/').reverse().join('-'));
+      const diffDays = Math.ceil(Math.abs(d1.getTime() - d2.getTime()) / (1000 * 60 * 60 * 24)); 
+      
+      if (diffDays === 1) currentStreak++;
+      else break;
+    }
+    setStreak(currentStreak);
+  };
+
+  const handlePressButton = () => {
+    Animated.sequence([
+      Animated.timing(scaleAnim, { toValue: 0.9, duration: 100, useNativeDriver: true }),
+      Animated.spring(scaleAnim, { toValue: 1, friction: 3, tension: 40, useNativeDriver: true })
+    ]).start(() => setModalVisible(true));
+  };
+
+  const handleRegisterNo = async (selectedReason: string) => {
+    const newEvent: NoEvent = {
+      id: Date.now().toString(),
+      timestamp: new Date().toISOString(),
+      reason: selectedReason.trim() || 'Sem motivo aparente',
+    };
+    const updatedHistory = [newEvent, ...history];
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedHistory));
+      setReason('');
+      setModalVisible(false);
+      loadData();
+    } catch (e) { console.error(e); }
+  };
+
+  return (
+    <View style={styles.container}>
+      
+      {/* HEADER DA TELA PRINCIPAL (Ofensiva + Total) */}
+      <View style={styles.homeHeader}>
+        {streak > 0 ? (
+          <View style={styles.streakBadge}>
+            <Text style={styles.streakText}>🔥 Ofensiva: {streak} {streak === 1 ? 'dia' : 'dias'}</Text>
+          </View>
+        ) : (
+          <Text style={styles.subtitle}>Registre a rejeição.</Text>
+        )}
+        
+        <Text style={styles.totalNaoText}>
+          Total Acumulado: <Text style={{color: '#FF3B30', fontWeight: '900'}}>{history.length}</Text>
+        </Text>
+      </View>
+
+      <View style={styles.centerContent}>
+        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+          <TouchableOpacity style={styles.redButton} activeOpacity={1} onPress={handlePressButton}>
+            <Text style={styles.redButtonText}>TOMEI NÃO</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+
+      <Modal visible={modalVisible} animationType="slide" transparent={true}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Qual foi o motivo?</Text>
+            <TextInput style={styles.input} placeholder="Digite um novo motivo..." value={reason} onChangeText={setReason} />
+            <TouchableOpacity style={styles.saveButton} onPress={() => handleRegisterNo(reason)}>
+              <Text style={styles.saveButtonText}>Salvar Novo Motivo</Text>
+            </TouchableOpacity>
+            <Text style={styles.orText}>Ou escolha um anterior:</Text>
+            <FlatList
+              data={recentReasons} keyExtractor={(item) => item}
+              renderItem={({ item }) => (
+                <TouchableOpacity style={styles.reasonBadge} onPress={() => handleRegisterNo(item)}>
+                  <Text style={styles.reasonBadgeText}>{item}</Text>
+                </TouchableOpacity>
+              )}
+              style={styles.list}
+            />
+            <TouchableOpacity style={styles.cancelButton} onPress={() => setModalVisible(false)}>
+              <Text style={styles.cancelButtonText}>Cancelar (Foi alarme falso)</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+// --- TELA 2: HISTÓRICO COM EXCLUSÃO ---
+function HistoryScreen() {
+  const [history, setHistory] = useState<NoEvent[]>([]);
+
+  useFocusEffect(
+    useCallback(() => { loadHistory(); }, [])
+  );
+
+  const loadHistory = async () => {
+    try {
+      const data = await AsyncStorage.getItem(STORAGE_KEY);
+      if (data) setHistory(JSON.parse(data));
+    } catch (e) { console.error(e); }
+  };
+
+  const deleteRecord = (id: string) => {
+    Alert.alert(
+      "Excluir Registro",
+      "Tem certeza que deseja apagar esse 'Não'?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        { 
+          text: "Apagar", 
+          style: "destructive",
+          onPress: async () => {
+            const newHistory = history.filter(item => item.id !== id);
+            await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newHistory));
+            setHistory(newHistory);
+          }
+        }
+      ]
+    );
+  };
+
+  const formatDate = (iso: string) => {
+    return new Date(iso).toLocaleDateString('pt-BR', {
+      day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit'
+    }).replace(',', ' às ');
+  };
+
+  return (
+    <View style={styles.container}>
+      <FlatList
+        data={history}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={{ paddingBottom: 20, paddingTop: 20 }}
+        renderItem={({ item }) => (
+          <View style={styles.historyCard}>
+            <View style={{flex: 1}}>
+              <Text style={styles.historyDate}>{formatDate(item.timestamp)}</Text>
+              <Text style={styles.historyReason}>{item.reason}</Text>
+            </View>
+            <TouchableOpacity onPress={() => deleteRecord(item.id)} style={styles.deleteBtn}>
+              <Ionicons name="trash-outline" size={24} color="#FF3B30" />
+            </TouchableOpacity>
+          </View>
+        )}
+      />
+    </View>
+  );
+}
+
+// --- TELA 3: DASHBOARD BI (HISTOGRAMA + PARETO) ---
+function DashboardScreen() {
+  const [history, setHistory] = useState<NoEvent[]>([]);
+  const [timeView, setTimeView] = useState<'month' | 'year'>('month');
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  
+  const [histogramData, setHistogramData] = useState<{labels: string[], datasets: [{data: number[]}]}>({labels: [], datasets: [{data: [0]}]});
+  const [paretoStats, setParetoStats] = useState<{labels: string[], datasets: [{data: number[]}]}>({labels: [], datasets: [{data: [0]}]});
+
+  useFocusEffect(
+    useCallback(() => { loadStats(); }, [])
+  );
+
+  const loadStats = async () => {
+    try {
+      const data = await AsyncStorage.getItem(STORAGE_KEY);
+      if (data) {
+        const parsed: NoEvent[] = JSON.parse(data);
+        setHistory(parsed);
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  useEffect(() => {
+    if (history.length > 0) {
+      updateCharts(history, timeView, selectedYear);
+    }
+  }, [history, timeView, selectedYear]);
+
+  const updateCharts = (data: NoEvent[], view: 'month' | 'year', year: number) => {
+    // 1. Processamento do Histograma (Temporal)
+    if (view === 'month') {
+      const monthCounts = new Array(12).fill(0);
+      data.forEach(event => {
+        const d = new Date(event.timestamp);
+        if (d.getFullYear() === year) monthCounts[d.getMonth()]++;
+      });
+      setHistogramData({
+        labels: ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'],
+        datasets: [{ data: monthCounts.every(v => v === 0) ? [0] : monthCounts }]
+      });
+    } else {
+      const yearCounts: Record<string, number> = {};
+      data.forEach(event => {
+        const y = new Date(event.timestamp).getFullYear().toString();
+        yearCounts[y] = (yearCounts[y] || 0) + 1;
+      });
+      const years = Object.keys(yearCounts).sort();
+      setHistogramData({
+        labels: years.length > 0 ? years : [new Date().getFullYear().toString()],
+        datasets: [{ data: years.length > 0 ? years.map(y => yearCounts[y]) : [0] }]
+      });
+    }
+
+    // 2. Processamento do Pareto (Motivos)
+    const counts = data.reduce((acc, curr) => {
+      acc[curr.reason] = (acc[curr.reason] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const sortedEntries = Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+
+    setParetoStats({
+      labels: sortedEntries.length > 0 ? sortedEntries.map(e => e[0].length > 8 ? e[0].substring(0, 8) + '..' : e[0]) : ['N/A'],
+      datasets: [{ data: sortedEntries.length > 0 ? sortedEntries.map(e => e[1]) : [0] }]
+    });
+  };
+
+  const chartConfig = {
+    backgroundColor: '#FFF', backgroundGradientFrom: '#FFF', backgroundGradientTo: '#FFF',
+    fillShadowGradient: '#FF3B30', fillShadowGradientOpacity: 1, decimalPlaces: 0,
+    color: (opacity = 1) => `rgba(255, 59, 48, ${opacity})`,
+    labelColor: (opacity = 1) => `rgba(28, 28, 30, ${opacity})`,
+    barPercentage: 0.6,
+  };
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
+      
+      {/* Controles do Histograma */}
+      <View style={styles.controlRow}>
+        <View style={styles.toggleGroup}>
+          <TouchableOpacity 
+            style={[styles.toggleBtn, timeView === 'month' && styles.toggleActive]} 
+            onPress={() => setTimeView('month')}
+          >
+            <Text style={[styles.toggleText, timeView === 'month' && styles.toggleTextActive]}>Meses</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.toggleBtn, timeView === 'year' && styles.toggleActive]} 
+            onPress={() => setTimeView('year')}
+          >
+            <Text style={[styles.toggleText, timeView === 'year' && styles.toggleTextActive]}>Anos</Text>
+          </TouchableOpacity>
+        </View>
+
+        {timeView === 'month' && (
+          <View style={styles.yearSelector}>
+            <TouchableOpacity onPress={() => setSelectedYear(y => y - 1)}>
+              <Ionicons name="chevron-back" size={24} color="#007AFF" />
+            </TouchableOpacity>
+            <Text style={styles.selectedYearText}>{selectedYear}</Text>
+            <TouchableOpacity onPress={() => setSelectedYear(y => y + 1)}>
+              <Ionicons name="chevron-forward" size={24} color="#007AFF" />
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+
+      {/* Gráfico Histograma */}
+      <View style={styles.chartContainer}>
+        <Text style={styles.chartTitle}>Frequência no Tempo</Text>
+        <BarChart
+          data={histogramData} 
+          width={screenWidth - 60} 
+          height={220}
+          yAxisLabel="" yAxisSuffix="" fromZero={true}
+          chartConfig={chartConfig} 
+          style={{ paddingRight: 30, borderRadius: 16, marginTop: 10 }}
+          showValuesOnTopOfBars={true}
+        />
+      </View>
+
+      {/* Gráfico de Pareto */}
+      <View style={[styles.chartContainer, { marginTop: 24 }]}>
+        <Text style={styles.chartTitle}>Top 5 Motivos (Pareto)</Text>
+        <BarChart
+          data={paretoStats} 
+          width={screenWidth - 60} 
+          height={240}
+          yAxisLabel="" yAxisSuffix="" fromZero={true}
+          chartConfig={chartConfig} 
+          style={{ paddingRight: 30, borderRadius: 16, marginTop: 10 }}
+          showValuesOnTopOfBars={true}
+        />
+      </View>
+
+    </ScrollView>
+  );
+}
+
+// --- NAVEGAÇÃO SUPERIOR ---
+const Tab = createMaterialTopTabNavigator();
+
+export default function App() {
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#FFF' }}>
+      <StatusBar barStyle="dark-content" />
+      
+      {/* Header do App */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>NegaDex</Text>
+      </View>
+
+      <NavigationContainer>
+        <Tab.Navigator 
+          screenOptions={{ 
+            tabBarActiveTintColor: '#FF3B30',
+            tabBarInactiveTintColor: '#8E8E93',
+            tabBarIndicatorStyle: { backgroundColor: '#FF3B30', height: 3 },
+            tabBarLabelStyle: { fontSize: 13, fontWeight: 'bold' },
+            tabBarStyle: { backgroundColor: '#FFF', elevation: 0, shadowOpacity: 0 },
+          }}
+        >
+          <Tab.Screen name="Registro" component={HomeScreen} />
+          <Tab.Screen name="Histórico" component={HistoryScreen} />
+          <Tab.Screen name="Analytics" component={DashboardScreen} />
+        </Tab.Navigator>
+      </NavigationContainer>
+    </SafeAreaView>
+  );
+}
+
+// --- ESTILOS ---
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#F2F2F7', padding: 20 },
+  header: { paddingVertical: 15, alignItems: 'center', backgroundColor: '#FFF' },
+  headerTitle: { fontSize: 28, fontWeight: '900', color: '#1C1C1E' },
+  subtitle: { fontSize: 16, color: '#8E8E93', textAlign: 'center', marginTop: 10, marginBottom: 20 },
+  centerContent: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  
+  homeHeader: { alignItems: 'center', marginBottom: 20 },
+  totalNaoText: { fontSize: 18, fontWeight: 'bold', color: '#1C1C1E', marginTop: 8 },
+
+  streakBadge: { backgroundColor: '#FF9500', alignSelf: 'center', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, marginTop: 16, marginBottom: 8 },
+  streakText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
+
+  redButton: { backgroundColor: '#FF3B30', width: 250, height: 250, borderRadius: 125, justifyContent: 'center', alignItems: 'center', shadowColor: '#FF3B30', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.5, shadowRadius: 15, elevation: 10, borderWidth: 8, borderColor: '#FF8A84' },
+  redButtonText: { color: '#FFF', fontSize: 26, fontWeight: '900', letterSpacing: 2 },
+  
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: '#FFF', padding: 24, borderTopLeftRadius: 20, borderTopRightRadius: 20, minHeight: '50%' },
+  modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 16 },
+  input: { backgroundColor: '#F2F2F7', padding: 16, borderRadius: 8, fontSize: 16, marginBottom: 12 },
+  saveButton: { backgroundColor: '#007AFF', padding: 16, borderRadius: 8, alignItems: 'center' },
+  saveButtonText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
+  orText: { textAlign: 'center', marginVertical: 16, color: '#8E8E93' },
+  list: { maxHeight: 150 },
+  reasonBadge: { backgroundColor: '#E5E5EA', padding: 12, borderRadius: 8, marginBottom: 8 },
+  reasonBadgeText: { color: '#1C1C1E', fontSize: 16 },
+  cancelButton: { marginTop: 16, padding: 16, alignItems: 'center' },
+  cancelButtonText: { color: '#FF3B30', fontSize: 16, fontWeight: 'bold' },
+  
+  historyCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', padding: 16, borderRadius: 12, marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2, borderLeftWidth: 4, borderLeftColor: '#FF3B30' },
+  historyDate: { fontSize: 12, color: '#8E8E93', fontWeight: 'bold', marginBottom: 4 },
+  historyReason: { fontSize: 18, color: '#1C1C1E', fontWeight: '600' },
+  deleteBtn: { padding: 8 },
+
+  controlRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  toggleGroup: { flexDirection: 'row', backgroundColor: '#E5E5EA', borderRadius: 8, padding: 4 },
+  toggleBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 6 },
+  toggleActive: { backgroundColor: '#FFF', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 },
+  toggleText: { color: '#8E8E93', fontWeight: 'bold', fontSize: 14 },
+  toggleTextActive: { color: '#1C1C1E' },
+  
+  yearSelector: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 },
+  selectedYearText: { fontSize: 16, fontWeight: 'bold', color: '#1C1C1E', marginHorizontal: 12 },
+
+  chartContainer: { backgroundColor: '#FFF', paddingVertical: 20, paddingHorizontal: 10, borderRadius: 16, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3 },
+  chartTitle: { fontSize: 18, fontWeight: 'bold', color: '#1C1C1E', marginBottom: 10 }
+});
+</file>
+
+<file path=".github/workflows/build.yml">
+name: Gerar APK Android
+on:
+  push:
+    branches: [ main, master ] # Vai rodar sempre que você der push
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checar código
+        uses: actions/checkout@v3
+
+      - name: Configurar Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20.19.4
+
+      - name: Configurar Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Instalar EAS CLI
+        run: npm install -g eas-cli
+
+      - name: Instalar dependências
+        run: npm install
+
+      - name: Build no EAS (Local)
+        run: eas build -p android --profile preview --non-interactive --local --output ./build/app.apk
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Disponibilizar APK para Download
+        uses: actions/upload-artifact@v4
+        with:
+          name: NegaDex-APK
+          path: build/*.apk
+</file>
+
+<file path="package.json">
+{
+  "name": "negadex",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^15.0.3",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-navigation/bottom-tabs": "^7.18.5",
+    "@react-navigation/material-top-tabs": "^7.6.5",
+    "@react-navigation/native": "^7.3.5",
+    "expo": "~54.0.34",
+    "expo-font": "~14.0.12",
+    "expo-status-bar": "~3.0.9",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-chart-kit": "^7.0.1",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-pager-view": "6.9.1",
+    "react-native-reanimated": "~4.1.1",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-svg": "15.12.1",
+    "react-native-worklets": "0.5.1"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.0",
+    "babel-preset-expo": "^57.0.2",
+    "typescript": "~5.9.2"
+  },
+  "private": true
+}
+</file>
+
+</files>
