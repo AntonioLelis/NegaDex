@@ -1,7 +1,7 @@
 name: Gerar APK Android
 on:
   push:
-    branches: [ main, master ] # Vai rodar sempre que você der push
+    branches: [ main, master ]
 
 jobs:
   build:
@@ -15,20 +15,21 @@ jobs:
         with:
           node-version: 20.19.4
 
-      - name: Configurar Java
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
       - name: Instalar EAS CLI
         run: npm install -g eas-cli
 
       - name: Instalar dependências
         run: npm install
 
-      - name: Build no EAS (Local)
-        run: eas build -p android --profile preview --non-interactive --local --output ./build/app.apk
+      - name: Build no EAS (Nuvem)
+        run: eas build -p android --profile preview --non-interactive --wait
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Baixar APK gerado
+        run: |
+          mkdir -p build
+          eas build:download --platform android --latest --output ./build/app.apk
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
