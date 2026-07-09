@@ -27,8 +27,8 @@ jobs:
       - name: Instalar dependências
         run: npm install
 
-      - name: Build no EAS (Nuvem)
-        run: eas build -p android --profile preview --non-interactive
+      - name: Build no EAS (Local)
+        run: eas build -p android --profile preview --non-interactive --local --output ./build/app.apk
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
